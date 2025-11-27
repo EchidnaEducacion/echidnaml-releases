@@ -1,0 +1,141 @@
+name: Build Installers from Private Repo
+on:
+  # Trigger manual
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag or branch to build'
+        required: true
+        default: 'main'
+  
+  # Trigger desde el repo privado via webhook
+  repository_dispatch:
+    types: [build-release]
+
+jobs:
+  dist:
+    name: Build ${{ matrix.os }} installers
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_glob: dist/*.deb
+          - os: macos-latest
+            artifact_glob: dist/*.dmg
+          - os: windows-latest
+            artifact_glob: dist/*.msi
+    steps:
+      # ✅ Checkout del repo PRIVADO
+      - name: Checkout private repository
+        uses: actions/checkout@v4
+        with:
+          repository: EchidnaEducacion/echidnaml
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          ref: ${{ github.event.inputs.tag || github.event.client_payload.tag || 'main' }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.11.0
+          cache: yarn
+      
+      - name: Enable Corepack
+        run: corepack enable
+      
+      - name: Install Linux build dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm binutils
+      
+      - name: Install Windows build dependencies
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          npm install -g node-gyp
+      
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.cache/yarn
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+      
+      - name: Install project dependencies
+        run: yarn install --frozen-lockfile
+      
+      - name: Build installers with electron-builder
+        run: yarn dist
+      
+      - name: Upload distributables
+        uses: actions/upload-artifact@v4
+        with:
+          name: echidnaml-${{ matrix.os }}
+          path: ${{ matrix.artifact_glob }}
+          retention-days: 7
+          compression-level: 9
+
+  release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    needs: dist
+    if: github.event.inputs.tag || github.event.client_payload.tag
+    permissions:
+      contents: write
+    steps:
+      - name: Download installers
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Prepare release assets
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${{ github.event.inputs.tag || github.event.client_payload.tag }}"
+          mkdir -p release
+          while IFS= read -r -d '' file; do
+            base="$(basename "$file")"
+            extension="${base##*.}"
+            if [[ "$extension" == "$base" ]]; then
+              new_name="${base}-${RELEASE_TAG}"
+            else
+              name_without_extension="${base%.*}"
+              new_name="${name_without_extension}-${RELEASE_TAG}.${extension}"
+            fi
+            cp "$file" "release/${new_name}"
+          done < <(find artifacts -type f -print0)
+      
+      - name: Create or update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.event.client_payload.tag }}
+          name: ${{ github.event.inputs.tag || github.event.client_payload.tag }}
+          files: release/*
+          body: |
+            Automated release build for EchidnaML
+            
+            Built from: EchidnaEducacion/echidnaml@${{ github.event.inputs.tag || github.event.client_payload.tag }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  cleanup:
+    name: Cleanup old artifacts
+    runs-on: ubuntu-latest
+    if: always()
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Delete artifacts older than 7 days
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cutoff_date=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          gh api repos/${{ github.repository }}/actions/artifacts \
+            --paginate \
+            --jq ".artifacts[] | select(.created_at < \"$cutoff_date\") | .id" \
+            | xargs -I {} gh api repos/${{ github.repository }}/actions/artifacts/{} -X DELETE || true
