@@ -95,19 +95,8 @@ jobs:
       - name: Prepare release assets
         run: |
           set -euo pipefail
-          RELEASE_TAG="${{ github.event.inputs.tag || github.event.client_payload.tag }}"
           mkdir -p release
-          while IFS= read -r -d '' file; do
-            base="$(basename "$file")"
-            extension="${base##*.}"
-            if [[ "$extension" == "$base" ]]; then
-              new_name="${base}-${RELEASE_TAG}"
-            else
-              name_without_extension="${base%.*}"
-              new_name="${name_without_extension}-${RELEASE_TAG}.${extension}"
-            fi
-            cp "$file" "release/${new_name}"
-          done < <(find artifacts -type f -print0)
+          find artifacts -type f -exec cp {} release/ \;
       
       - name: Create or update release
         uses: softprops/action-gh-release@v2
