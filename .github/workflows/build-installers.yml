@@ -19,7 +19,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             artifact_glob: dist/*.{deb,AppImage}
           - os: macos-latest
             artifact_glob: dist/*.dmg
