@@ -53,10 +53,6 @@ Este repositorio incluye un workflow de GitHub Actions (.github/workflows/build-
   - Los artifacts se mantienen por 7 días (retention-days: 7).
   - El job de cleanup borra artifacts del repositorio echidnaml-releases con más de 7 días utilizando la CLI `gh`.
 
-Si quieres, puedo:
-- Añadir más detalles técnicos o ejemplos de uso del webhook,
-- o revertir/ajustar el cambio si prefieres otra redacción.
-
 ---
 
 *Actualizado por juanda mediante GitHub Actions assistant.*
