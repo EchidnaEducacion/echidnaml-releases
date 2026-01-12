@@ -72,7 +72,20 @@ jobs:
       
       - name: Build installers with electron-builder
         run: yarn dist
-      
+
+      - name: Rename Ubuntu 24.04 .deb file
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          cd dist
+          for file in *.deb; do
+            if [ -f "$file" ]; then
+              # Extract version from filename: echidnaml_<version>_amd64.deb
+              newname=$(echo "$file" | sed 's/_amd64\.deb$/-ubuntu-24.04_amd64.deb/')
+              mv "$file" "$newname"
+              echo "Renamed: $file -> $newname"
+            fi
+          done
+
       - name: Upload distributables
         uses: actions/upload-artifact@v4
         with:
