@@ -73,13 +73,13 @@ jobs:
       - name: Install project dependencies
         run: yarn install --frozen-lockfile
       
+      - name: Build installers with electron-builder (AppImage)
+        if: matrix.build_target == 'appimage'
+        run: yarn dist --linux AppImage
+
       - name: Build installers with electron-builder
-        run: |
-          if [ "${{ matrix.build_target }}" = "appimage" ]; then
-            yarn dist --linux AppImage
-          else
-            yarn dist
-          fi
+        if: matrix.build_target != 'appimage'
+        run: yarn dist
 
       - name: Rename Ubuntu 24.04 .deb file
         if: matrix.os == 'ubuntu-24.04'
