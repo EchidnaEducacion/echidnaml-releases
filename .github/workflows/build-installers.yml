@@ -21,6 +21,8 @@ jobs:
         include:
           - os: ubuntu-22.04
             artifact_glob: dist/*.deb
+          - os: ubuntu-24.04
+            artifact_glob: dist/*.deb
           - os: macos-latest
             artifact_glob: dist/*.dmg
           - os: windows-latest
@@ -44,7 +46,7 @@ jobs:
         run: corepack enable
       
       - name: Install Linux build dependencies
-        if: matrix.os == 'ubuntu-latest'
+        if: startsWith(matrix.os, 'ubuntu-')
         run: |
           sudo apt-get update
           sudo apt-get install -y rpm binutils
