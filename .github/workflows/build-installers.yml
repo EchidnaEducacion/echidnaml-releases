@@ -23,6 +23,9 @@ jobs:
             artifact_glob: dist/*.deb
           - os: ubuntu-24.04
             artifact_glob: dist/*.deb
+          - os: ubuntu-22.04
+            build_target: appimage
+            artifact_glob: dist/*.AppImage
           - os: macos-latest
             artifact_glob: dist/*.dmg
           - os: windows-latest
@@ -71,7 +74,12 @@ jobs:
         run: yarn install --frozen-lockfile
       
       - name: Build installers with electron-builder
-        run: yarn dist
+        run: |
+          if [ "${{ matrix.build_target }}" = "appimage" ]; then
+            yarn dist --linux AppImage
+          else
+            yarn dist
+          fi
 
       - name: Rename Ubuntu 24.04 .deb file
         if: matrix.os == 'ubuntu-24.04'
@@ -89,7 +97,7 @@ jobs:
       - name: Upload distributables
         uses: actions/upload-artifact@v4
         with:
-          name: echidnaml-${{ matrix.os }}
+          name: echidnaml-${{ matrix.os }}${{ matrix.build_target && format('-{0}', matrix.build_target) || '' }}
           path: ${{ matrix.artifact_glob }}
           retention-days: 7
           compression-level: 9
