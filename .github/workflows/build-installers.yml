@@ -28,6 +28,8 @@ jobs:
             artifact_glob: dist/*.AppImage
           - os: macos-latest
             artifact_glob: dist/*.dmg
+          - os: macos-15-intel
+            artifact_glob: dist/*.dmg
           - os: windows-2022
             artifact_glob: dist/*.msi
     steps:
@@ -66,9 +68,9 @@ jobs:
           path: |
             node_modules
             ~/.cache/yarn
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-yarn-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-
+            ${{ runner.os }}-${{ runner.arch }}-yarn-
       
       - name: Install project dependencies
         run: yarn install --frozen-lockfile
@@ -77,9 +79,25 @@ jobs:
         if: matrix.build_target == 'appimage'
         run: yarn dist --linux AppImage
 
+      - name: Build installers with electron-builder (macOS Intel x64)
+        if: matrix.os == 'macos-15-intel'
+        run: yarn dist --mac --x64
+
       - name: Build installers with electron-builder
-        if: matrix.build_target != 'appimage'
+        if: matrix.build_target != 'appimage' && matrix.os != 'macos-15-intel'
         run: yarn dist
+
+      - name: Rename macOS Intel .dmg file
+        if: matrix.os == 'macos-15-intel'
+        run: |
+          cd dist
+          for file in *.dmg; do
+            if [ -f "$file" ] && [[ "$file" != *x64* ]]; then
+              newname="${file%.dmg}-x64.dmg"
+              mv "$file" "$newname"
+              echo "Renamed: $file -> $newname"
+            fi
+          done
 
       - name: Rename Ubuntu 24.04 .deb file
         if: matrix.os == 'ubuntu-24.04'
